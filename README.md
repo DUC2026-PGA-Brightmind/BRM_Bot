@@ -4,11 +4,11 @@
 # [Virtual Company Name] - Telegram Bot Project
 
 ### 🔗 Project Navigation
-* **Live Bot:** [t.me/YourBotHandle](https://t.me/YourBotHandle)
-* **Project Management:** [Link to GitHub Project Board]
+* **Live Bot:** [t.me/brightmind_bot](https://t.me/brightmind_bot)
+* **Project Management:**(https://github.com/orgs/DUC2026-PGA-Brightmind/projects/1)
 * **Full Documentation:** [Link to GitHub Wiki]
 
 ### 🛠 Technical Summary
-* **Language:** Node.js / Java / Python
-* **Database:** PostgreSQL / Firebase
+* **Language:** Python
+* **Database:** Firebase
 * **Mockup Scenario:** [Insert Selected Scenario Name]
