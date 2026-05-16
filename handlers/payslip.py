@@ -146,13 +146,28 @@ def register_handlers(bot: TeleBot, shared_sessions: dict):
             bot.send_message(uid, "💰 អ្នកមិនទាន់មានបញ្ជីប្រាក់ខែទេ។ វានឹងបង្ហាញនៅទីនេះនៅពេល HR ផ្ញើ។")
             return
 
-        bot.send_message(uid, f"💰 *បញ្ជីប្រាក់ខែរបស់អ្នក ({len(slips)} សរុប):*", parse_mode="Markdown")
+        bot.send_message(uid, f"💰 *បញ្ជីប្រាក់ខែរបស់អ្នក ({len(slips)} សរុប):*",
+                         parse_mode="Markdown")
         for slip in slips[:12]:
-            try:
-                bot.send_document(
+            # Check if it's a calculated payslip (no PDF file)
+            if slip["file_id"] and slip["file_id"].startswith("CALC:"):
+                net = slip["file_id"].replace("CALC:", "")
+                bot.send_message(
                     uid,
-                    slip["file_id"],
-                    caption=f"📄 បញ្ជីប្រាក់ខែ — {slip['month']} {slip['year']}"
+                    f"💰 *ប្រាក់ខែ — {slip['month']} {slip['year']}*\n"
+                    f"💵 ប្រាក់ខែសុទ្ធ: *${net}*\n"
+                    f"_(សូមទាក់ទង HR សម្រាប់ព័ត៌មានលម្អិត)_",
+                    parse_mode="Markdown"
                 )
-            except Exception:
-                bot.send_message(uid, f"⚠️ មិនអាចទាញយកបញ្ជីប្រាក់ខែ {slip['month']} {slip['year']} បានទេ។")
+            else:
+                try:
+                    bot.send_document(
+                        uid,
+                        slip["file_id"],
+                        caption=f"📄 បញ្ជីប្រាក់ខែ — {slip['month']} {slip['year']}"
+                    )
+                except Exception:
+                    bot.send_message(
+                        uid,
+                        f"⚠️ មិនអាចទាញយកបញ្ជីប្រាក់ខែ {slip['month']} {slip['year']} បានទេ។"
+                    )

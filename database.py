@@ -90,6 +90,21 @@ def init_db():
         )
     """)
 
+    # Attendance table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS attendance (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            worker_id INT NOT NULL,
+            work_date DATE NOT NULL,
+            check_in DATETIME DEFAULT NULL,
+            check_out DATETIME DEFAULT NULL,
+            status ENUM('present','absent','half_day','late') DEFAULT 'present',
+            note TEXT DEFAULT NULL,
+            UNIQUE KEY unique_worker_date (worker_id, work_date),
+            FOREIGN KEY (worker_id) REFERENCES workers(id)
+        )
+    """)
+
     conn.commit()
     cursor.close()
     conn.close()
@@ -451,3 +466,336 @@ def get_worker_leave_summary(worker_id, year=None):
     rows = cursor.fetchall()
     cursor.close(); conn.close()
     return rows
+
+# ══════════════════════════════════════════════════════════════════
+#  ATTENDANCE HELPERS
+# ══════════════════════════════════════════════════════════════════
+
+def get_today_attendance(worker_id):
+    """Get today's attendance record for a worker."""
+    from datetime import date
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM attendance WHERE worker_id=%s AND work_date=%s",
+        (worker_id, date.today())
+    )
+    row = cursor.fetchone()
+    cursor.close(); conn.close()
+    return row
+
+
+def check_in(worker_id):
+    """Record check-in. Returns (success, message_kh)."""
+    from datetime import date, datetime
+    today = date.today()
+    now = datetime.now()
+
+    # Check-in allowed: 12 AM (00:00) to 12 PM (12:00)
+    if not (0 <= now.hour < 12):
+        return False, f"⚠️ ម៉ោងចូលធ្វើការ គឺ ១២ យប់ ដល់ ១២ ថ្ងៃត្រង់ប៉ុណ្ណោះ។\nឥឡូវ: {now.strftime('%H:%M')}"
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Check if already checked in today
+    cursor.execute(
+        "SELECT * FROM attendance WHERE worker_id=%s AND work_date=%s",
+        (worker_id, today)
+    )
+    existing = cursor.fetchone()
+
+    if existing and existing["check_in"]:
+        cursor.close(); conn.close()
+        check_in_time = existing["check_in"].strftime("%H:%M") if hasattr(existing["check_in"], "strftime") else str(existing["check_in"])
+        return False, f"⚠️ អ្នកបានចូលធ្វើការហើយ នៅម៉ោង *{check_in_time}* ។"
+
+    # Determine status: late if after 8:00 AM
+    status = "late" if now.hour >= 8 else "present"
+
+    try:
+        if existing:
+            cursor.execute(
+                "UPDATE attendance SET check_in=%s, status=%s WHERE worker_id=%s AND work_date=%s",
+                (now, status, worker_id, today)
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO attendance (worker_id, work_date, check_in, status) VALUES (%s,%s,%s,%s)",
+                (worker_id, today, now, status)
+            )
+        conn.commit()
+        cursor.close(); conn.close()
+        status_kh = "យឺត" if status == "late" else "ទាន់ម៉ោង"
+        return True, f"✅ *បានចូលធ្វើការ!*\n🕐 ម៉ោង: *{now.strftime('%H:%M')}*\n📅 ថ្ងៃ: {today}\n📌 ស្ថានភាព: {status_kh}"
+    except Exception as e:
+        cursor.close(); conn.close()
+        return False, f"❌ កំហុស: {e}"
+
+
+def check_out(worker_id):
+    """Record check-out. Returns (success, message_kh)."""
+    from datetime import date, datetime
+    today = date.today()
+    now = datetime.now()
+
+    # Check-out allowed: 12 PM (12:00) to 12 AM next day (24:00)
+    if not (12 <= now.hour <= 23):
+        return False, f"⚠️ ម៉ោងចេញធ្វើការ គឺ ១២ ថ្ងៃត្រង់ ដល់ ១២ យប់ប៉ុណ្ណោះ។\nឥឡូវ: {now.strftime('%H:%M')}"
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute(
+        "SELECT * FROM attendance WHERE worker_id=%s AND work_date=%s",
+        (worker_id, today)
+    )
+    existing = cursor.fetchone()
+
+    if not existing or not existing["check_in"]:
+        cursor.close(); conn.close()
+        return False, "⚠️ អ្នកមិនទាន់បានចូលធ្វើការទេ។ សូមចូលធ្វើការជាមុនសិន។"
+
+    if existing["check_out"]:
+        check_out_time = existing["check_out"].strftime("%H:%M") if hasattr(existing["check_out"], "strftime") else str(existing["check_out"])
+        cursor.close(); conn.close()
+        return False, f"⚠️ អ្នកបានចេញធ្វើការហើយ នៅម៉ោង *{check_out_time}* ។"
+
+    try:
+        # Calculate hours worked
+        check_in_dt = existing["check_in"]
+        if hasattr(check_in_dt, "hour"):
+            delta = now - check_in_dt
+            hours = delta.seconds // 3600
+            minutes = (delta.seconds % 3600) // 60
+            duration = f"{hours} ម៉ោង {minutes} នាទី"
+        else:
+            duration = "—"
+
+        cursor.execute(
+            "UPDATE attendance SET check_out=%s WHERE worker_id=%s AND work_date=%s",
+            (now, worker_id, today)
+        )
+        conn.commit()
+        cursor.close(); conn.close()
+        return True, (
+            f"✅ *បានចេញធ្វើការ!*\n"
+            f"🕔 ម៉ោង: *{now.strftime('%H:%M')}*\n"
+            f"📅 ថ្ងៃ: {today}\n"
+            f"⏱ រយៈពេលធ្វើការ: {duration}"
+        )
+    except Exception as e:
+        cursor.close(); conn.close()
+        return False, f"❌ កំហុស: {e}"
+
+
+def get_attendance_by_worker(worker_id, month=None, year=None):
+    """Get attendance records for a worker, optionally filtered by month/year."""
+    from datetime import datetime
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    now = datetime.now()
+    m = month or now.month
+    y = year or now.year
+    cursor.execute(
+        """SELECT * FROM attendance
+           WHERE worker_id=%s AND MONTH(work_date)=%s AND YEAR(work_date)=%s
+           ORDER BY work_date DESC""",
+        (worker_id, m, y)
+    )
+    rows = cursor.fetchall()
+    cursor.close(); conn.close()
+    return rows
+
+
+def get_all_attendance_today():
+    """Get all workers' attendance for today (admin view)."""
+    from datetime import date
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT a.*, w.full_name, w.employee_id, w.department
+        FROM attendance a JOIN workers w ON a.worker_id=w.id
+        WHERE a.work_date=%s ORDER BY a.check_in ASC
+    """, (date.today(),))
+    rows = cursor.fetchall()
+    cursor.close(); conn.close()
+    return rows
+
+
+def get_attendance_summary(month=None, year=None):
+    """Monthly attendance summary per worker (admin analytics)."""
+    from datetime import datetime
+    now = datetime.now()
+    m = month or now.month
+    y = year or now.year
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT w.full_name, w.employee_id, w.department,
+               COUNT(*) as total_days,
+               SUM(CASE WHEN a.status='present' THEN 1 ELSE 0 END) as present,
+               SUM(CASE WHEN a.status='late'    THEN 1 ELSE 0 END) as late,
+               SUM(CASE WHEN a.status='absent'  THEN 1 ELSE 0 END) as absent,
+               SUM(CASE WHEN a.check_out IS NOT NULL THEN
+                   TIMESTAMPDIFF(MINUTE, a.check_in, a.check_out) ELSE 0 END) as total_minutes
+        FROM attendance a JOIN workers w ON a.worker_id=w.id
+        WHERE MONTH(a.work_date)=%s AND YEAR(a.work_date)=%s
+        GROUP BY w.id ORDER BY w.full_name
+    """, (m, y))
+    rows = cursor.fetchall()
+    cursor.close(); conn.close()
+    return rows
+
+# ══════════════════════════════════════════════════════════════════
+#  SALARY CALCULATION ENGINE
+#  Rules:
+#   - Base salary: $300/month
+#   - Absent without leave: deduct $5/day
+#   - Approved leave > 3 days in a month: deduct $5 per extra day
+#   - Daily rate = $300 / working_days_in_month
+# ══════════════════════════════════════════════════════════════════
+
+BASE_SALARY = 300.0
+DEDUCT_PER_DAY = 5.0
+FREE_LEAVE_DAYS = 3       # first 3 approved leave days are free
+LATE_DEDUCT = 1.0         # optional: $1 deduction per late check-in
+
+
+def get_working_days_in_month(year, month):
+    """Count Mon-Fri working days in a given month."""
+    import calendar
+    _, days_in_month = calendar.monthrange(year, month)
+    count = 0
+    for d in range(1, days_in_month + 1):
+        import datetime
+        if datetime.date(year, month, d).weekday() < 5:  # Mon=0 … Fri=4
+            count += 1
+    return count
+
+
+def calculate_salary(worker_id, month, year):
+    """
+    Calculate net salary for a worker for a given month/year.
+    Returns a dict with full breakdown.
+    """
+    import datetime
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # ── 1. Attendance data ───────────────────────────────────────
+    cursor.execute("""
+        SELECT work_date, check_in, check_out, status
+        FROM attendance
+        WHERE worker_id=%s AND MONTH(work_date)=%s AND YEAR(work_date)=%s
+        ORDER BY work_date
+    """, (worker_id, month, year))
+    att_records = cursor.fetchall()
+
+    # ── 2. Approved leave days this month ────────────────────────
+    cursor.execute("""
+        SELECT start_date, end_date,
+               DATEDIFF(end_date, start_date) + 1 AS days
+        FROM leave_requests
+        WHERE worker_id=%s
+          AND status='approved'
+          AND (
+              (MONTH(start_date)=%s AND YEAR(start_date)=%s)
+           OR (MONTH(end_date)=%s   AND YEAR(end_date)=%s)
+          )
+    """, (worker_id, month, year, month, year))
+    leave_records = cursor.fetchall()
+    cursor.close(); conn.close()
+
+    working_days = get_working_days_in_month(year, month)
+    daily_rate   = BASE_SALARY / working_days if working_days else 0
+
+    # Days actually checked in
+    present_days = len([r for r in att_records if r["check_in"]])
+    late_days    = len([r for r in att_records if r["status"] == "late"])
+
+    # Total approved leave days (capped to this month's days)
+    total_leave_days = 0
+    for lr in leave_records:
+        # Count only days that fall within this month
+        start = lr["start_date"]
+        end   = lr["end_date"]
+        if hasattr(start, "year"):
+            month_start = datetime.date(year, month, 1)
+            import calendar
+            month_end = datetime.date(year, month, calendar.monthrange(year, month)[1])
+            actual_start = max(start, month_start)
+            actual_end   = min(end,   month_end)
+            if actual_end >= actual_start:
+                total_leave_days += (actual_end - actual_start).days + 1
+        else:
+            total_leave_days += int(lr["days"] or 0)
+
+    # Absent without leave = working days not covered by attendance or leave
+    covered_days = present_days + total_leave_days
+    absent_no_leave = max(0, working_days - covered_days)
+
+    # Deductions
+    # 1) Absent without leave: $5/day
+    deduct_absent = absent_no_leave * DEDUCT_PER_DAY
+
+    # 2) Approved leave > 3 days: $5 per extra day
+    extra_leave_days = max(0, total_leave_days - FREE_LEAVE_DAYS)
+    deduct_leave     = extra_leave_days * DEDUCT_PER_DAY
+
+    # 3) Late deduction (optional, $1/late)
+    deduct_late = late_days * LATE_DEDUCT
+
+    total_deductions = deduct_absent + deduct_leave + deduct_late
+    net_salary       = max(0.0, BASE_SALARY - total_deductions)
+
+    return {
+        "worker_id":        worker_id,
+        "month":            month,
+        "year":             year,
+        "base_salary":      BASE_SALARY,
+        "working_days":     working_days,
+        "daily_rate":       round(daily_rate, 2),
+        "present_days":     present_days,
+        "late_days":        late_days,
+        "total_leave_days": total_leave_days,
+        "extra_leave_days": extra_leave_days,
+        "absent_no_leave":  absent_no_leave,
+        "deduct_absent":    round(deduct_absent, 2),
+        "deduct_leave":     round(deduct_leave, 2),
+        "deduct_late":      round(deduct_late, 2),
+        "total_deductions": round(total_deductions, 2),
+        "net_salary":       round(net_salary, 2),
+    }
+
+
+def calculate_all_salaries(month, year):
+    """Calculate salary for every worker for a given month."""
+    workers = get_all_workers()
+    results = []
+    for w in workers:
+        calc = calculate_salary(w["id"], month, year)
+        calc["full_name"]   = w["full_name"]
+        calc["employee_id"] = w["employee_id"]
+        calc["department"]  = w["department"]
+        results.append(calc)
+    return results
+
+
+def save_salary_record(worker_id, month, year, net_salary, breakdown_json):
+    """Save calculated salary to payslips table (as a computed record)."""
+    import json
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Use file_id = 'CALCULATED' to mark auto-generated payslips
+    cursor.execute("""
+        INSERT INTO payslips (worker_id, month, year, file_id, file_name)
+        VALUES (%s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE file_id=VALUES(file_id), file_name=VALUES(file_name)
+    """, (worker_id, month, year,
+          f"CALC:{net_salary}",
+          f"salary_{month}_{year}.txt"))
+    conn.commit()
+    sid = cursor.lastrowid
+    cursor.close(); conn.close()
+    return sid

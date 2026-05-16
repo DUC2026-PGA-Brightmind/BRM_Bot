@@ -20,7 +20,8 @@ from database import (
     update_leave_status, get_leave_request_by_id,
     get_pending_sick_notes, get_all_sick_notes,
     save_payslip, get_all_payslips,
-    get_dashboard_stats, get_leave_analytics, get_worker_leave_summary
+    get_dashboard_stats, get_leave_analytics, get_worker_leave_summary,
+    get_all_attendance_today, get_attendance_summary
 )
 from export_utils import (
     export_workers_csv, export_leaves_csv, export_payslips_csv,
@@ -73,6 +74,7 @@ def main_kb():
         KeyboardButton("📅 គ្រប់គ្រងច្បាប់"),
         KeyboardButton("🤒 លិខិតឈឺ"),
         KeyboardButton("💰 បញ្ជីប្រាក់ខែ"),
+        KeyboardButton("🗓 វត្តមានបុគ្គលិក"),
         KeyboardButton("📈 របាយការណ៍ & វិភាគ"),
         KeyboardButton("📤 នាំចេញទិន្នន័យ"),
         KeyboardButton("📢 សារជូនដំណឹង")
@@ -178,6 +180,7 @@ def dashboard(message):
         f"🤒 លិខិតឈឺរង់ចាំ:        *{s['pending_sick_notes']}*\n"
         f"💰 ប្រាក់ខែបានផ្ញើខែនេះ:  *{s['payslips_this_month']}*\n"
         f"📅 ច្បាប់ស្នើខែនេះ:       *{s['leaves_this_month']}*\n"
+        f"🗓 វត្តមានថ្ងៃនេះ:        *{len(get_all_attendance_today())}* នាក់\n"
         "━━━━━━━━━━━━━━━━━━━━"
     )
     bot.send_message(message.from_user.id, text, parse_mode="Markdown")
@@ -520,6 +523,106 @@ def show_sick_notes(call):
 
 
 # ══════════════════════════════════════════════════════════════════
+#  ATTENDANCE MANAGEMENT (Admin View)
+# ══════════════════════════════════════════════════════════════════
+
+@bot.message_handler(func=lambda m: m.text == "🗓 វត្តមានបុគ្គលិក")
+def attendance_menu(message):
+    if not guard(message): return
+    from database import get_all_attendance_today, get_attendance_summary
+    from datetime import datetime
+
+    today_records = get_all_attendance_today()
+    now = datetime.now()
+    MONTHS_KH = {
+        1:"មករា",2:"កុម្ភៈ",3:"មីនា",4:"មេសា",5:"ឧសភា",6:"មិថុនា",
+        7:"កក្កដា",8:"សីហា",9:"កញ្ញា",10:"តុលា",11:"វិច្ឆិកា",12:"ធ្នូ"
+    }
+
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("📋 វត្តមានថ្ងៃនេះ", callback_data="att_today"),
+        InlineKeyboardButton("📊 សង្ខេបខែនេះ", callback_data="att_month")
+    )
+
+    checked_in = len([r for r in today_records if r["check_in"]])
+    checked_out = len([r for r in today_records if r["check_out"]])
+
+    text = (
+        f"🗓 *វត្តមានបុគ្គលិក*\n\n"
+        f"📅 ថ្ងៃនេះ: *{now.strftime('%Y-%m-%d')}*\n"
+        f"🕐 បានចូល: *{checked_in}* នាក់\n"
+        f"🕔 បានចេញ: *{checked_out}* នាក់\n\n"
+        f"ជ្រើសរើស:"
+    )
+    bot.send_message(message.from_user.id, text, parse_mode="Markdown", reply_markup=kb)
+
+
+@bot.callback_query_handler(func=lambda c: c.data == "att_today")
+def att_today(call):
+    if not is_admin(call.from_user.id): return
+    from database import get_all_attendance_today
+    records = get_all_attendance_today()
+    bot.answer_callback_query(call.id)
+
+    if not records:
+        bot.send_message(call.from_user.id, "📋 មិនទាន់មានវត្តមានថ្ងៃនេះទេ។")
+        return
+
+    STATUS_KH = {"present":"✅","late":"⏰","absent":"❌","half_day":"🌓"}
+    text = f"📋 *វត្តមានថ្ងៃនេះ ({len(records)} នាក់):*\n\n"
+    for r in records:
+        ci = r["check_in"]
+        co = r["check_out"]
+        ci_str = ci.strftime("%H:%M") if ci and hasattr(ci,"strftime") else "—"
+        co_str = co.strftime("%H:%M") if co and hasattr(co,"strftime") else "—"
+        st = STATUS_KH.get(r["status"], "❓")
+        text += (
+            f"{st} *{r['full_name']}* ({r['employee_id']})\n"
+            f"   🏢 {r['department']} | ចូល {ci_str} | ចេញ {co_str}\n"
+        )
+        if len(text) > 3800:
+            bot.send_message(call.from_user.id, text, parse_mode="Markdown")
+            text = ""
+    if text.strip():
+        bot.send_message(call.from_user.id, text, parse_mode="Markdown")
+
+
+@bot.callback_query_handler(func=lambda c: c.data == "att_month")
+def att_month(call):
+    if not is_admin(call.from_user.id): return
+    from database import get_attendance_summary
+    from datetime import datetime
+    now = datetime.now()
+    MONTHS_KH = {
+        1:"មករា",2:"កុម្ភៈ",3:"មីនា",4:"មេសា",5:"ឧសភា",6:"មិថុនា",
+        7:"កក្កដា",8:"សីហា",9:"កញ្ញា",10:"តុលា",11:"វិច្ឆិកា",12:"ធ្នូ"
+    }
+    summary = get_attendance_summary(now.month, now.year)
+    bot.answer_callback_query(call.id)
+
+    if not summary:
+        bot.send_message(call.from_user.id,
+                         f"📊 មិនទាន់មានទិន្នន័យខែ {MONTHS_KH[now.month]} {now.year} ទេ។")
+        return
+
+    text = f"📊 *វត្តមានខែ {MONTHS_KH[now.month]} {now.year}*\n\n"
+    for r in summary:
+        total_h = (r["total_minutes"] or 0) // 60
+        total_m = (r["total_minutes"] or 0) % 60
+        text += (
+            f"👤 *{r['full_name']}* ({r['employee_id']})\n"
+            f"   ✅ {r['present']} ថ្ងៃ | ⏰ {r['late']} ថ្ងៃ | ❌ {r['absent']} ថ្ងៃ"
+            f" | ⏱ {total_h}h{total_m}m\n"
+        )
+        if len(text) > 3800:
+            bot.send_message(call.from_user.id, text, parse_mode="Markdown")
+            text = ""
+    if text.strip():
+        bot.send_message(call.from_user.id, text, parse_mode="Markdown")
+
+
+# ══════════════════════════════════════════════════════════════════
 #  PAYSLIP MANAGEMENT
 # ══════════════════════════════════════════════════════════════════
 
@@ -528,7 +631,8 @@ def payslip_menu(message):
     if not guard(message): return
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
-        InlineKeyboardButton("📤 បញ្ជូនប្រាក់ខែទៅបុគ្គលិក", callback_data="payslip_send"),
+        InlineKeyboardButton("🧮 គណនាប្រាក់ខែ (Auto)", callback_data="salary_calc"),
+        InlineKeyboardButton("📤 បញ្ជូនប្រាក់ខែ (PDF)", callback_data="payslip_send"),
         InlineKeyboardButton("📋 មើលប្រាក់ខែទាំងអស់", callback_data="payslip_all")
     )
     bot.send_message(message.from_user.id, "💰 *គ្រប់គ្រងបញ្ជីប្រាក់ខែ*\nជ្រើសរើស:",
@@ -660,8 +764,182 @@ def view_all_payslips(call):
     bot.answer_callback_query(call.id)
 
 # ══════════════════════════════════════════════════════════════════
-#  REPORTS & ANALYTICS
+#  SALARY AUTO-CALCULATION
 # ══════════════════════════════════════════════════════════════════
+
+MONTHS_EN_TO_NUM = {
+    "January":1,"February":2,"March":3,"April":4,"May":5,"June":6,
+    "July":7,"August":8,"September":9,"October":10,"November":11,"December":12
+}
+MONTHS_KH_NAMES = {
+    1:"មករា",2:"កុម្ភៈ",3:"មីនា",4:"មេសា",5:"ឧសភា",6:"មិថុនា",
+    7:"កក្កដា",8:"សីហា",9:"កញ្ញា",10:"តុលា",11:"វិច្ឆិកា",12:"ធ្នូ"
+}
+
+@bot.callback_query_handler(func=lambda c: c.data == "salary_calc")
+def salary_calc_start(call):
+    uid = call.from_user.id
+    if not is_admin(uid): return
+    from datetime import datetime
+    now = datetime.now()
+    sessions[uid] = {"state": "salary_month", "data": {}}
+    bot.send_message(
+        uid,
+        "🧮 *គណនាប្រាក់ខែ Auto*\n\n"
+        "📌 *ច្បាប់គណនា:*\n"
+        "• ប្រាក់ខែមូលដ្ឋាន: *$300*\n"
+        "• អវត្តមានគ្មានច្បាប់: *កាត់ $5/ថ្ងៃ*\n"
+        "• ច្បាប់ > ៣ ថ្ងៃ: *កាត់ $5/ថ្ងៃ* (ថ្ងៃលើស)\n"
+        "• ចូលយឺត: *កាត់ $1/ថ្ងៃ*\n\n"
+        f"បញ្ចូលខែ និងឆ្នាំ (ឧ. May 2026):\n"
+        f"_(ខែបច្ចុប្បន្ន: {now.strftime('%B %Y')})_",
+        parse_mode="Markdown",
+        reply_markup=cancel_kb()
+    )
+    bot.answer_callback_query(call.id)
+
+@bot.message_handler(func=lambda m: sessions.get(m.from_user.id, {}).get("state") == "salary_month")
+def salary_calc_month(message):
+    uid = message.from_user.id
+    if message.text == "❌ បោះបង់":
+        sessions.pop(uid, None)
+        bot.send_message(uid, "បានបោះបង់។", reply_markup=main_kb())
+        return
+    try:
+        from datetime import datetime
+        parsed = datetime.strptime(message.text.strip(), "%B %Y")
+        month = parsed.month
+        year  = parsed.year
+    except ValueError:
+        bot.send_message(uid, "⚠️ ទម្រង់មិនត្រឹមត្រូវ។ ឧ. May 2026")
+        return
+
+    sessions.pop(uid, None)
+
+    # Show calculating message
+    prog = bot.send_message(uid, "⏳ កំពុងគណនា...")
+
+    from database import calculate_all_salaries
+    results = calculate_all_salaries(month, year)
+
+    try:
+        bot.delete_message(uid, prog.message_id)
+    except Exception:
+        pass
+
+    if not results:
+        bot.send_message(uid, "⚠️ មិនទាន់មានបុគ្គលិកទេ។", reply_markup=main_kb())
+        return
+
+    month_kh = MONTHS_KH_NAMES.get(month, str(month))
+    total_net = sum(r["net_salary"] for r in results)
+
+    # Summary header
+    header = (
+        f"🧮 *ប្រាក់ខែ — {month_kh} {year}*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👥 បុគ្គលិក: {len(results)} នាក់\n"
+        f"💵 ប្រាក់ខែមូលដ្ឋាន: ${300}/នាក់\n"
+        f"💰 សរុបត្រូវបង់: *${total_net:.2f}*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+    )
+    bot.send_message(uid, header, parse_mode="Markdown")
+
+    # Detail per worker — send in chunks
+    text = ""
+    for r in results:
+        deductions_detail = ""
+        if r["deduct_absent"] > 0:
+            deductions_detail += f"    ❌ អវត្តមានគ្មានច្បាប់ {r['absent_no_leave']} ថ្ងៃ: -${r['deduct_absent']:.2f}\n"
+        if r["deduct_leave"] > 0:
+            deductions_detail += f"    📅 ច្បាប់លើស {r['extra_leave_days']} ថ្ងៃ: -${r['deduct_leave']:.2f}\n"
+        if r["deduct_late"] > 0:
+            deductions_detail += f"    ⏰ ចូលយឺត {r['late_days']} ថ្ងៃ: -${r['deduct_late']:.2f}\n"
+        if not deductions_detail:
+            deductions_detail = "    ✅ គ្មានការកាត់\n"
+
+        text += (
+            f"👤 *{r['full_name']}* ({r['employee_id']})\n"
+            f"  🏢 {r['department']}\n"
+            f"  📋 ចូល: {r['present_days']}ថ្ងៃ | ច្បាប់: {r['total_leave_days']}ថ្ងៃ | "
+            f"អវត្តមាន: {r['absent_no_leave']}ថ្ងៃ\n"
+            f"  💸 ការកាត់:\n{deductions_detail}"
+            f"  💰 *សុទ្ធ: ${r['net_salary']:.2f}*\n\n"
+        )
+        if len(text) > 3500:
+            bot.send_message(uid, text, parse_mode="Markdown")
+            text = ""
+
+    if text.strip():
+        bot.send_message(uid, text, parse_mode="Markdown")
+
+    # Offer to notify workers
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton(
+        f"📢 ជូនដំណឹងបុគ្គលិកទាំង {len(results)} នាក់",
+        callback_data=f"salary_notify_{month}_{year}"
+    ))
+    bot.send_message(uid, "ចង់ជូនដំណឹងប្រាក់ខែទៅបុគ្គលិកទេ?",
+                     reply_markup=kb)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("salary_notify_"))
+def salary_notify_workers(call):
+    uid = call.from_user.id
+    if not is_admin(uid): return
+    _, _, month_str, year_str = call.data.split("_", 3)
+    month = int(month_str)
+    year  = int(year_str)
+    month_kh = MONTHS_KH_NAMES.get(month, str(month))
+
+    from database import calculate_all_salaries, get_worker_by_id
+    results = calculate_all_salaries(month, year)
+    bot.answer_callback_query(call.id)
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+
+    sent = 0
+    failed = 0
+    for r in results:
+        w = get_worker_by_id(r["worker_id"])
+        if not w:
+            continue
+        deductions_detail = ""
+        if r["deduct_absent"] > 0:
+            deductions_detail += f"  ❌ អវត្តមានគ្មានច្បាប់ {r['absent_no_leave']} ថ្ងៃ: -${r['deduct_absent']:.2f}\n"
+        if r["deduct_leave"] > 0:
+            deductions_detail += f"  📅 ច្បាប់លើស {r['extra_leave_days']} ថ្ងៃ: -${r['deduct_leave']:.2f}\n"
+        if r["deduct_late"] > 0:
+            deductions_detail += f"  ⏰ ចូលយឺត {r['late_days']} ថ្ងៃ: -${r['deduct_late']:.2f}\n"
+        if not deductions_detail:
+            deductions_detail = "  ✅ គ្មានការកាត់\n"
+
+        msg = (
+            f"💰 *បញ្ជីប្រាក់ខែ — {month_kh} {year}*\n\n"
+            f"👤 {r['full_name']} ({r['employee_id']})\n"
+            f"🏢 {r['department']}\n\n"
+            f"📊 *សង្ខេប:*\n"
+            f"  📋 ថ្ងៃចូល: {r['present_days']} ថ្ងៃ\n"
+            f"  📅 ច្បាប់: {r['total_leave_days']} ថ្ងៃ\n"
+            f"  ❌ អវត្តមានគ្មានច្បាប់: {r['absent_no_leave']} ថ្ងៃ\n\n"
+            f"💸 *ការកាត់:*\n{deductions_detail}\n"
+            f"💵 ប្រាក់ខែមូលដ្ឋាន: ${r['base_salary']:.2f}\n"
+            f"➖ ការកាត់សរុប: -${r['total_deductions']:.2f}\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"💰 *ប្រាក់ខែសុទ្ធ: ${r['net_salary']:.2f}*"
+        )
+        try:
+            worker_bot.send_message(w["telegram_id"], msg, parse_mode="Markdown")
+            sent += 1
+        except Exception:
+            failed += 1
+
+    bot.send_message(
+        uid,
+        f"✅ *បានជូនដំណឹងប្រាក់ខែ {month_kh} {year}*\n\n"
+        f"📤 បានផ្ញើ: *{sent}* នាក់\n"
+        f"❌ បរាជ័យ: *{failed}* នាក់",
+        parse_mode="Markdown",
+        reply_markup=main_kb()
+    )
 
 @bot.message_handler(func=lambda m: m.text == "📈 របាយការណ៍ & វិភាគ")
 def report_menu(message):

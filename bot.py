@@ -24,12 +24,14 @@ from handlers.leave import register_handlers as reg_leave
 from handlers.sick_note import register_handlers as reg_sick
 from handlers.payslip import register_handlers as reg_payslip
 from handlers.admin import register_handlers as reg_admin
+from handlers.attendance import register_handlers as reg_attendance
 
 reg_registration(bot)
 reg_leave(bot, shared_sessions)
 reg_sick(bot, shared_sessions)
 reg_payslip(bot, shared_sessions)
 reg_admin(bot, shared_sessions)
+reg_attendance(bot)
 
 
 # ── Fallback handler ─────────────────────────────────────────────

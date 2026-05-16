@@ -10,10 +10,13 @@ def main_menu_keyboard():
     """ម៉ឺនុយសម្រាប់បុគ្គលិក"""
     kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add(
+        KeyboardButton("🕐 ចូលធ្វើការ"),
+        KeyboardButton("🕔 ចេញធ្វើការ"),
         KeyboardButton("📅 ស្នើសុំច្បាប់"),
         KeyboardButton("🤒 បញ្ជូនលិខិតឈឺ"),
         KeyboardButton("💰 បញ្ជីប្រាក់ខែខ្ញុំ"),
         KeyboardButton("📋 ស្ថានភាពច្បាប់ខ្ញុំ"),
+        KeyboardButton("📆 វត្តមានខ្ញុំ"),
         KeyboardButton("ℹ️ ប្រវត្តិរូបខ្ញុំ")
     )
     return kb
