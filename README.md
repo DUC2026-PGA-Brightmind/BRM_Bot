@@ -1,113 +1,98 @@
-# HR Management Telegram Bot
+# BrightMind HR Management Bot
 
-A Telegram bot for construction/cleaning firms with 50+ mobile workers.  
-Handles leave requests, sick note uploads, and payslip distribution — all via Telegram.
+A Telegram HR bot system for construction/cleaning firms with 50+ mobile workers.
+Two bots: **Worker Bot** (employees) + **Admin Bot** (HR managers).
 
 ---
 
 ## Features
 
-| Feature | Workers | Admins |
+| Feature | Worker Bot | Admin Bot |
 |---|---|---|
-| Self-registration | ✅ | ✅ |
-| Request leave (annual/sick/emergency/unpaid) | ✅ | — |
-| View leave status | ✅ | — |
-| Upload sick notes (photo or PDF) | ✅ | — |
+| Self-registration | ✅ | — |
+| Request leave | ✅ | — |
+| Submit sick notes | ✅ | — |
+| Check-in / Check-out | ✅ | — |
 | View payslips | ✅ | — |
-| Approve / reject leave requests | — | ✅ |
-| View pending sick notes | — | ✅ |
-| Send payslips to workers | — | ✅ |
-| Broadcast announcements | — | ✅ |
-| View all registered workers | — | ✅ |
+| Approve/Reject leave | — | ✅ |
+| Salary auto-calculation | — | ✅ |
+| Attendance reports | — | ✅ |
+| Export CSV/PDF | — | ✅ |
+| Broadcast messages | — | ✅ |
+| Employee management | — | ✅ |
 
 ---
 
-## Requirements
-
-- Python 3.9+
-- XAMPP (MySQL running on port 3306)
-- Telegram Bot Token
-
----
-
-## Setup
-
-### 1. Install XAMPP and start MySQL
-Open XAMPP Control Panel → Start **Apache** and **MySQL**.
-
-### 2. Install Python dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Configure the bot
-Edit `config.py`:
-```python
-BOT_TOKEN = "your_bot_token_here"
-
-DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "",        # Default XAMPP password is empty
-    "database": "hr_bot_db",
-    "port": 3306
-}
-
-ADMIN_IDS = [YOUR_TELEGRAM_USER_ID]  # Get your ID from @userinfobot on Telegram
-```
-
-### 4. Run the bot
-```bash
-python bot.py
-```
-
-The bot will automatically create the `hr_bot_db` database and all tables on first run.
+## Salary Rules
+- Base salary: **$300/month**
+- Absent without leave: **-$5/day**
+- Approved leave > 3 days: **-$5/day** (extra days only)
+- Late check-in: **-$1/day**
 
 ---
 
-## How to find your Telegram User ID
-1. Open Telegram and search for `@userinfobot`
-2. Send `/start` — it will reply with your numeric user ID
-3. Add that number to `ADMIN_IDS` in `config.py`
+## Tech Stack
+- **Language:** Python 3.11
+- **Bot Library:** pyTelegramBotAPI
+- **Database:** MySQL (Railway)
+- **Hosting:** Railway.app
+- **Language:** Khmer (ភាសាខ្មែរ)
 
 ---
 
 ## Project Structure
 
 ```
-├── bot.py                  # Main entry point
-├── config.py               # Bot token, DB config, admin IDs
-├── database.py             # MySQL helpers and schema
-├── keyboards.py            # Telegram keyboards
-├── states.py               # Conversation state constants
-├── requirements.txt
-├── uploads/                # Local file cache (auto-created)
+BRM_Bot/
+├── bot.py              # Worker Bot entry point
+├── admin_bot.py        # Admin Bot entry point
+├── run_both.py         # Runs both bots (Railway)
+├── config.py           # Config (reads from env vars)
+├── database.py         # All MySQL queries + salary calc
+├── keyboards.py        # Telegram keyboards
+├── states.py           # Conversation states
+├── export_utils.py     # CSV + PDF export
+├── migrate.py          # DB migrations
+├── nixpacks.toml       # Railway build config
+├── Procfile            # Railway start command
+├── requirements.txt    # Python dependencies
 └── handlers/
-    ├── registration.py     # Worker self-registration
-    ├── leave.py            # Leave request flow + admin approval
-    ├── sick_note.py        # Sick note upload + admin view
-    ├── payslip.py          # Payslip send (admin) + view (worker)
-    └── admin.py            # Broadcast, worker list, profile
+    ├── registration.py # Worker sign-up
+    ├── leave.py        # Leave requests
+    ├── sick_note.py    # Sick note upload
+    ├── payslip.py      # Payslip view
+    ├── attendance.py   # Check-in/out
+    └── admin.py        # Worker profile
 ```
 
 ---
 
-## Worker Flow
-1. Worker opens bot → `/start`
-2. Registers with name, employee ID, department, phone
-3. Uses menu to request leave, upload sick notes, view payslips
+## Deploy to Railway
 
-## Admin Flow
-1. Admin opens bot → `/start` (must be registered as worker first)
-2. Use `/admin` command to access admin panel
-3. Approve/reject leaves, view sick notes, send payslips, broadcast messages
+1. Fork/clone this repo
+2. Create new Railway project → Deploy from GitHub
+3. Add MySQL database service
+4. Set environment variables:
+   ```
+   BOT_TOKEN=your_worker_bot_token
+   ADMIN_BOT_TOKEN=your_admin_bot_token
+   ADMIN_IDS=your_telegram_id
+   ```
+5. Link MySQL variables (MYSQLHOST, MYSQLUSER, MYSQLPASSWORD, MYSQLDATABASE, MYSQLPORT)
+6. Run migration: `python migrate.py`
+7. Start command: `python run_both.py`
 
 ---
 
-## Database Tables
+## Environment Variables
 
-- `workers` — registered employees
-- `leave_requests` — all leave requests with status
-- `sick_notes` — uploaded sick note file references
-- `payslips` — payslip file references per worker per month
-- `notifications` — notification log
+| Variable | Description |
+|---|---|
+| `BOT_TOKEN` | Worker Bot token from @BotFather |
+| `ADMIN_BOT_TOKEN` | Admin Bot token from @BotFather |
+| `ADMIN_IDS` | Comma-separated admin Telegram IDs |
+| `MYSQLHOST` | MySQL host (auto from Railway) |
+| `MYSQLUSER` | MySQL user (auto from Railway) |
+| `MYSQLPASSWORD` | MySQL password (auto from Railway) |
+| `MYSQLDATABASE` | MySQL database (auto from Railway) |
+| `MYSQLPORT` | MySQL port (auto from Railway) |
