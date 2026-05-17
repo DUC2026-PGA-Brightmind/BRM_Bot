@@ -58,7 +58,12 @@ def is_admin(uid):
 
 def guard(message):
     if not is_admin(message.from_user.id):
-        bot.send_message(message.from_user.id, "⛔ អ្នកមិនមានសិទ្ធិប្រើបូតនេះទេ។")
+        uid = message.from_user.id
+        bot.send_message(
+            uid,
+            f"⛔ អ្នកមិនមានសិទ្ធិ។\n🆔 ID របស់អ្នក: `{uid}`\n\nសូមដាក់ ID នេះក្នុង Railway → ADMIN\\_IDS",
+            parse_mode="Markdown"
+        )
         return False
     return True
 
@@ -434,7 +439,14 @@ def view_leaves_by_status(message):
 def handle_leave_action(call):
     uid = call.from_user.id
     if not is_admin(uid):
-        bot.answer_callback_query(call.id, "⛔ គ្មានសិទ្ធិ")
+        bot.answer_callback_query(call.id, f"⛔ គ្មានសិទ្ធិ — ID: {uid}")
+        bot.send_message(
+            uid,
+            f"⛔ គ្មានសិទ្ធិអនុម័ត។\n\n"
+            f"🆔 Telegram ID របស់អ្នក: `{uid}`\n\n"
+            f"➡️ ចូល Railway → Variables → *ADMIN\\_IDS* → ដាក់ ID នេះ → Save",
+            parse_mode="Markdown"
+        )
         return
     # adm_approve_5  →  action="approve", leave_id=5
     # adm_reject_5   →  action="reject",  leave_id=5
