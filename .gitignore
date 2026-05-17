@@ -1,6 +1,6 @@
 # ── Secrets ──────────────────────────────────────────────────────
 .env
-config.py
+# config.py is pushed to GitHub — tokens read from env vars on Railway
 
 # ── Python ───────────────────────────────────────────────────────
 __pycache__/
