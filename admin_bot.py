@@ -1037,76 +1037,14 @@ def payslip_report(message):
     bot.send_message(message.from_user.id, text, parse_mode="Markdown")
 
 
-
-# ══════════════════════════════════════════════════════════════════
-#  REPORTS AND ANALYTICS
-# ══════════════════════════════════════════════════════════════════
-
-@bot.message_handler(func=lambda m: m.text == "📈 របាយការណ៍ & វិភាគ")
-def report_menu(message):
-    if not guard(message): return
-    bot.send_message(message.from_user.id, "📈 *របាយការណ៍*",
-                     parse_mode="Markdown", reply_markup=report_kb())
-
-@bot.message_handler(func=lambda m: m.text == "📊 វិភាគច្បាប់")
-def leave_analytics_cmd(message):
-    if not guard(message): return
-    data = get_leave_analytics()
-    year = data["year"]
-    MONTHS_EN = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
-                 7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
-    text = f"📊 *វិភាគច្បាប់ — ឆ្នាម {year}*\n\n"
-    text += "📌 *តាមប្រភេត:*\n"
-    for r in data["by_type"]:
-        lname = LEAVE_TYPE_KH.get(r["leave_type"], r["leave_type"])
-        text += f"  {lname}: សរុប {r['total']} | ✅{r['approved']} ❌{r['rejected']} ⏳{r['pending']}\n"
-    text += "\n🏢 *តាមនាយកដ្ឋាន:*\n"
-    for r in data["by_dept"][:6]:
-        text += f"  {r['department']}: {r['total']} ({r['approved']} អនុម័ត)\n"
-    text += "\n📅 *តាមខែ:*\n"
-    for r in data["by_month"]:
-        bar = chr(0x2588) * min(r["total"], 12)
-        text += f"  {MONTHS_EN.get(r['month'], str(r['month']))}: {bar} {r['total']}\n"
-    text += "\n🏆 *Top 5 ច្រើនច្បាប់:*\n"
-    for i, r in enumerate(data["top_takers"][:5], 1):
-        text += f"  {i}. {r['full_name']} ({r['employee_id']}) — {r['total_days']} ថ្ង្\n"
-    bot.send_message(message.from_user.id, text, parse_mode="Markdown")
-
-@bot.message_handler(func=lambda m: m.text == "👥 សង្ខេបបុគ្គលិក")
-def worker_summary_cmd(message):
-    if not guard(message): return
-    workers = get_all_workers()
-    depts = {}
-    for w in workers:
-        d = w.get("department", "Unknown")
-        depts[d] = depts.get(d, 0) + 1
-    text = f"👥 *សង្ខេបបុគ្គលិក*\n\nសរុប: *{len(workers)}* នាក\n\n🏢 *តាមនាយកដ្ឋាន:*\n"
-    for dept, count in sorted(depts.items(), key=lambda x: -x[1]):
-        bar = chr(0x2588) * min(count, 20)
-        text += f"  {dept}: {bar} {count}\n"
-    bot.send_message(message.from_user.id, text, parse_mode="Markdown")
-
-@bot.message_handler(func=lambda m: m.text == "💰 របាយការណ៍ប្រាក្ខែ")
-def payslip_report_cmd(message):
-    if not guard(message): return
-    slips = get_all_payslips()
-    by_month = {}
-    for s in slips:
-        key = f"{s['month']} {s['year']}"
-        by_month[key] = by_month.get(key, 0) + 1
-    text = f"💰 *របាយការណ៍ប្រាក្ខែ*\n\nសរុប: *{len(slips)}*\n\n📅 *តាមខែ:*\n"
-    for k, v in sorted(by_month.items(), reverse=True)[:12]:
-        text += f"  {k}: {v} នាក\n"
-    bot.send_message(message.from_user.id, text, parse_mode="Markdown")
-
 # ══════════════════════════════════════════════════════════════════
 #  EXPORT CSV / PDF
 # ══════════════════════════════════════════════════════════════════
 
-@bot.message_handler(func=lambda m: m.text == "📤 នាមចេញតិន្នន័យ")
+@bot.message_handler(func=lambda m: m.text == "📤 នាំចេញទិន្នន័យ")
 def export_menu(message):
     if not guard(message): return
-    bot.send_message(message.from_user.id, "📤 *នាមចេញតិន្នន័យ*",
+    bot.send_message(message.from_user.id, "📤 *នាំចេញទិន្នន័យ*\nជ្រើសរើស:",
                      parse_mode="Markdown", reply_markup=export_kb())
 
 @bot.message_handler(func=lambda m: m.text == "📄 CSV បុគ្គលិក")
@@ -1115,7 +1053,7 @@ def export_workers_csv_cmd(message):
     workers = get_all_workers()
     path = export_workers_csv(workers)
     with open(path, "rb") as f:
-        bot.send_document(message.from_user.id, f, caption=f"📄 CSV បុគ្គលិក {len(workers)} នាក")
+        bot.send_document(message.from_user.id, f, caption=f"📄 CSV បុគ្គលិក {len(workers)} នាក់")
     os.remove(path)
 
 @bot.message_handler(func=lambda m: m.text == "📄 CSV ច្បាប់")
@@ -1127,13 +1065,13 @@ def export_leaves_csv_cmd(message):
         bot.send_document(message.from_user.id, f, caption=f"📄 CSV ច្បាប់ {len(leaves)} កំណត់")
     os.remove(path)
 
-@bot.message_handler(func=lambda m: m.text == "📄 CSV ប្រាក្ខែ")
+@bot.message_handler(func=lambda m: m.text == "📄 CSV ប្រាក់ខែ")
 def export_payslips_csv_cmd(message):
     if not guard(message): return
     slips = get_all_payslips()
     path = export_payslips_csv(slips)
     with open(path, "rb") as f:
-        bot.send_document(message.from_user.id, f, caption=f"📄 CSV ប្រាក្ខែ {len(slips)} កំណត់")
+        bot.send_document(message.from_user.id, f, caption=f"📄 CSV ប្រាក់ខែ {len(slips)} កំណត់")
     os.remove(path)
 
 @bot.message_handler(func=lambda m: m.text == "🖨️ PDF បុគ្គលិក")
@@ -1142,7 +1080,7 @@ def export_workers_pdf_cmd(message):
     workers = get_all_workers()
     path = export_workers_pdf(workers, title="Employee Report")
     with open(path, "rb") as f:
-        bot.send_document(message.from_user.id, f, caption=f"🖨️ PDF បុគ្គលិក {len(workers)} នាក")
+        bot.send_document(message.from_user.id, f, caption=f"🖨️ PDF បុគ្គលិក {len(workers)} នាក់")
     os.remove(path)
 
 @bot.message_handler(func=lambda m: m.text == "🖨️ PDF ច្បាប់")
@@ -1232,10 +1170,14 @@ def broadcast_send(message):
 def fallback(message):
     uid = message.from_user.id
     if not is_admin(uid):
-        bot.send_message(uid, "⛔ អ្នកមិនមានសិត្ធប្រើបូតនេហត។")
+        bot.send_message(
+            uid,
+            f"⛔ អ្នកមិនមានសិទ្ធិប្រើបូតនេះទេ។\n🆔 ID: `{uid}`",
+            parse_mode="Markdown"
+        )
         return
     sessions.pop(uid, None)
-    bot.send_message(uid, "🏠 មើនូយចម្បង:", reply_markup=main_kb())
+    bot.send_message(uid, "🏠 ម៉ឺនុយចម្បង:", reply_markup=main_kb())
 
 # ══════════════════════════════════════════════════════════════════
 #  AUTO-NOTIFY: ផ្ញើ notification ជាមួយ button ទៅ admin
