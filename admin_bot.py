@@ -146,7 +146,13 @@ def leave_action_kb(leave_id):
 def cmd_start(message):
     uid = message.from_user.id
     if not is_admin(uid):
-        bot.send_message(uid, "⛔ អ្នកមិនមានសិទ្ធិប្រើបូតនេះទេ។")
+        bot.send_message(
+            uid,
+            f"⛔ អ្នកមិនមានសិទ្ធិប្រើបូតនេះទេ។\n\n"
+            f"🆔 Telegram ID របស់អ្នក: `{uid}`\n\n"
+            f"សូមប្រាប់ ID នេះទៅ HR Admin ដើម្បីបន្ថែមសិទ្ធិ។",
+            parse_mode="Markdown"
+        )
         return
     sessions.pop(uid, None)
     bot.send_message(
@@ -155,6 +161,16 @@ def cmd_start(message):
         "សូមស្វាគមន៍! ជ្រើសរើសមុខងារខាងក្រោម:",
         parse_mode="Markdown",
         reply_markup=main_kb()
+    )
+
+@bot.message_handler(commands=["myid"])
+def cmd_myid(message):
+    uid = message.from_user.id
+    bot.send_message(
+        uid,
+        f"🆔 *Telegram ID របស់អ្នក:*\n\n`{uid}`\n\n"
+        f"Copy លេខនេះ ហើយដាក់ក្នុង ADMIN\\_IDS នៅ Railway Variables។",
+        parse_mode="Markdown"
     )
 
 @bot.message_handler(func=lambda m: m.text == "🔙 ត្រឡប់ក្រោយ")
