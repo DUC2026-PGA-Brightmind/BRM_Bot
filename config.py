@@ -18,9 +18,19 @@ DB_CONFIG = {
 }
 
 # ── Admin IDs ────────────────────────────────────────────────────
-# Set as comma-separated string in Railway env: "123456789,987654321"
-_admin_ids_str = os.getenv("ADMIN_IDS", "1800044339,1473704251")
-ADMIN_IDS = [int(x.strip()) for x in _admin_ids_str.split(",") if x.strip()]
+_admin_ids_str = os.getenv("ADMIN_IDS", "1473704251,1800044339")
+ADMIN_IDS = []
+for x in _admin_ids_str.replace(" ", "").split(","):
+    try:
+        if x.strip():
+            ADMIN_IDS.append(int(x.strip()))
+    except ValueError:
+        pass
+# Always include these hardcoded admin IDs as fallback
+for _hid in [1473704251, 1800044339]:
+    if _hid not in ADMIN_IDS:
+        ADMIN_IDS.append(_hid)
+print(f"[CONFIG] ADMIN_IDS loaded: {ADMIN_IDS}")
 
 # ── Folders ──────────────────────────────────────────────────────
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "uploads")

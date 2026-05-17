@@ -38,6 +38,9 @@ os.makedirs(EXPORT_FOLDER, exist_ok=True)
 bot = telebot.TeleBot(ADMIN_BOT_TOKEN, parse_mode=None)
 sessions = {}  # {uid: {state, data}}
 
+# Print loaded admin IDs for debugging
+print(f"[ADMIN BOT] Loaded ADMIN_IDS: {ADMIN_IDS}")
+
 LEAVE_TYPE_KH = {
     "annual": "ច្បាប់ប្រចាំឆ្នាំ", "sick": "ច្បាប់ឈឺ",
     "emergency": "ច្បាប់បន្ទាន់", "unpaid": "ច្បាប់គ្មានប្រាក់ខែ"
