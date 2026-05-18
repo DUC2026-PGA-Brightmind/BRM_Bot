@@ -18,6 +18,41 @@ shared_sessions = {}
 print("🔧 Initializing database...")
 init_db()
 
+# Auto-run migrations on startup — safe for all MySQL versions
+def run_migrations():
+    try:
+        import mysql.connector
+        from config import DB_CONFIG
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # Check and add each column safely
+        checks = [
+            ("leave_requests", "reviewed_by",  "ALTER TABLE leave_requests ADD COLUMN reviewed_by BIGINT DEFAULT NULL"),
+            ("workers",        "position",      "ALTER TABLE workers ADD COLUMN position VARCHAR(100) DEFAULT NULL"),
+            ("workers",        "salary",        "ALTER TABLE workers ADD COLUMN salary DECIMAL(10,2) DEFAULT 0"),
+            ("workers",        "join_date",     "ALTER TABLE workers ADD COLUMN join_date DATE DEFAULT NULL"),
+            ("workers",        "is_active",     "ALTER TABLE workers ADD COLUMN is_active TINYINT(1) DEFAULT 1"),
+        ]
+        for table, col, sql in checks:
+            try:
+                cursor.execute(f"SELECT {col} FROM {table} LIMIT 1")
+                cursor.fetchall()
+            except Exception:
+                try:
+                    cursor.execute(sql)
+                    conn.commit()
+                    print(f"✅ Added column {table}.{col}")
+                except Exception as e2:
+                    print(f"⚠️ Could not add {table}.{col}: {e2}")
+        cursor.close()
+        conn.close()
+        print("✅ Migrations complete")
+    except Exception as e:
+        print(f"⚠️ Migration error: {e}")
+
+run_migrations()
+
 # Register all handlers
 from handlers.registration import register_handlers as reg_registration
 from handlers.leave import register_handlers as reg_leave

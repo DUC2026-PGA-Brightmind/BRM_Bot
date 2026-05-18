@@ -41,6 +41,39 @@ sessions = {}  # {uid: {state, data}}
 # Print loaded admin IDs for debugging
 print(f"[ADMIN BOT] Loaded ADMIN_IDS: {ADMIN_IDS}")
 
+# Auto-run migrations on startup — safe for all MySQL versions
+def run_migrations():
+    try:
+        import mysql.connector
+        from config import DB_CONFIG
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        checks = [
+            ("leave_requests", "reviewed_by",  "ALTER TABLE leave_requests ADD COLUMN reviewed_by BIGINT DEFAULT NULL"),
+            ("workers",        "position",      "ALTER TABLE workers ADD COLUMN position VARCHAR(100) DEFAULT NULL"),
+            ("workers",        "salary",        "ALTER TABLE workers ADD COLUMN salary DECIMAL(10,2) DEFAULT 0"),
+            ("workers",        "join_date",     "ALTER TABLE workers ADD COLUMN join_date DATE DEFAULT NULL"),
+            ("workers",        "is_active",     "ALTER TABLE workers ADD COLUMN is_active TINYINT(1) DEFAULT 1"),
+        ]
+        for table, col, sql in checks:
+            try:
+                cursor.execute(f"SELECT {col} FROM {table} LIMIT 1")
+                cursor.fetchall()
+            except Exception:
+                try:
+                    cursor.execute(sql)
+                    conn.commit()
+                    print(f"[ADMIN BOT] ✅ Added {table}.{col}")
+                except Exception as e2:
+                    print(f"[ADMIN BOT] ⚠️ {table}.{col}: {e2}")
+        cursor.close()
+        conn.close()
+        print("[ADMIN BOT] ✅ Migrations complete")
+    except Exception as e:
+        print(f"[ADMIN BOT] ⚠️ Migration error: {e}")
+
+run_migrations()
+
 LEAVE_TYPE_KH = {
     "annual": "ច្បាប់ប្រចាំឆ្នាំ", "sick": "ច្បាប់ឈឺ",
     "emergency": "ច្បាប់បន្ទាន់", "unpaid": "ច្បាប់គ្មានប្រាក់ខែ"
@@ -191,7 +224,7 @@ def go_back(message):
 #  DASHBOARD
 # ══════════════════════════════════════════════════════════════════
 
-@bot.message_handler(func=lambda m: m.text == "�� ផ្ទាំងគ្រប់គ្រង")
+@bot.message_handler(func=lambda m: m.text == "📊 ផ្ទាំងគ្រប់គ្រង")
 def dashboard(message):
     if not guard(message): return
     s = get_dashboard_stats()
@@ -410,7 +443,7 @@ def pending_leaves(message):
             f"📋 *ច្បាប់ #{r['id']}*\n"
             f"👤 {r['full_name']} ({r['employee_id']})\n"
             f"🏢 {r['department']}\n"
-            f"�� {LEAVE_TYPE_KH.get(r['leave_type'],r['leave_type'])}\n"
+            f"🗂 {LEAVE_TYPE_KH.get(r['leave_type'],r['leave_type'])}\n"
             f"📆 {r['start_date']} → {r['end_date']} ({days} ថ្ងៃ)\n"
             f"📝 {r['reason']}\n"
             f"🕐 {r['created_at']}"
@@ -441,23 +474,22 @@ def view_leaves_by_status(message):
 @bot.callback_query_handler(func=lambda c: c.data.startswith("adm_approve_") or c.data.startswith("adm_reject_"))
 def handle_leave_action(call):
     uid = call.from_user.id
+    print(f"[CALLBACK] leave action from uid={uid}, data={call.data}, ADMIN_IDS={ADMIN_IDS}")
+
     if not is_admin(uid):
-        bot.answer_callback_query(call.id, f"⛔ គ្មានសិទ្ធិ — ID: {uid}")
+        bot.answer_callback_query(call.id, f"⛔ ID {uid} not in ADMIN_IDS")
         bot.send_message(
             uid,
-            f"⛔ គ្មានសិទ្ធិអនុម័ត។\n\n"
-            f"🆔 Telegram ID របស់អ្នក: `{uid}`\n\n"
-            f"➡️ ចូល Railway → Variables → *ADMIN\\_IDS* → ដាក់ ID នេះ → Save",
+            f"⛔ គ្មានសិទ្ធិ។ ID: `{uid}`\nADMIN\\_IDS: `{ADMIN_IDS}`",
             parse_mode="Markdown"
         )
         return
-    # adm_approve_5  →  action="approve", leave_id=5
-    # adm_reject_5   →  action="reject",  leave_id=5
+
     try:
         _, action, leave_id_str = call.data.split("_", 2)
         leave_id = int(leave_id_str)
-    except (ValueError, IndexError):
-        bot.answer_callback_query(call.id, "❌ callback data ខុស")
+    except (ValueError, IndexError) as e:
+        bot.answer_callback_query(call.id, f"❌ parse error: {e}")
         return
 
     if action == "reject":
@@ -467,13 +499,33 @@ def handle_leave_action(call):
         bot.answer_callback_query(call.id)
         return
 
-    update_leave_status(leave_id, "approved", reviewed_by=uid)
+    try:
+        update_leave_status(leave_id, "approved", reviewed_by=uid)
+    except Exception as e:
+        print(f"[ERROR] update_leave_status failed: {e}")
+        # Try without reviewed_by in case column missing
+        try:
+            from database import get_connection
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE leave_requests SET status='approved' WHERE id=%s", (leave_id,))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print(f"[FALLBACK] Updated leave {leave_id} status directly")
+        except Exception as e2:
+            bot.answer_callback_query(call.id, f"❌ DB error: {e2}")
+            bot.send_message(uid, f"❌ Database error: {e2}")
+            return
+
     leave = get_leave_request_by_id(leave_id)
-    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    try:
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    except Exception:
+        pass
     bot.send_message(uid, f"✅ ច្បាប់ #{leave_id} *បានអនុម័ត*។", parse_mode="Markdown")
     if leave:
         try:
-            # ប្រើ worker_bot ផ្ញើ ព្រោះ worker បានចុះឈ្មោះតាម worker bot
             worker_bot.send_message(
                 leave["telegram_id"],
                 f"✅ *ច្បាប់ #{leave_id} របស់អ្នកបានអនុម័ត!*\n"
@@ -481,9 +533,9 @@ def handle_leave_action(call):
                 f"🗂 {LEAVE_TYPE_KH.get(leave['leave_type'],leave['leave_type'])}",
                 parse_mode="Markdown"
             )
-        except Exception:
-            pass
-    bot.answer_callback_query(call.id, "បានអនុម័ត")
+        except Exception as e:
+            print(f"[WARN] Could not notify worker: {e}")
+    bot.answer_callback_query(call.id, "បានអនុម័ត ✅")
 
 @bot.message_handler(func=lambda m: sessions.get(m.from_user.id, {}).get("state") == ADMIN_REJECT_NOTE)
 def reject_with_note(message):
