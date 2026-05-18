@@ -9,13 +9,21 @@ ADMIN_BOT_TOKEN = os.getenv("ADMIN_BOT_TOKEN", "8720658078:AAFRPP5TjYK-78vUqVKdf
 
 # ── Database ─────────────────────────────────────────────────────
 # Railway provides MYSQL_URL or individual vars
+_db_host = os.getenv("MYSQLHOST") or os.getenv("DB_HOST") or "localhost"
+_db_user = os.getenv("MYSQLUSER") or os.getenv("DB_USER") or "root"
+_db_pass = os.getenv("MYSQLPASSWORD") or os.getenv("DB_PASSWORD") or ""
+_db_name = os.getenv("MYSQLDATABASE") or os.getenv("DB_NAME") or "hr_bot_db"
+_db_port = int(os.getenv("MYSQLPORT") or os.getenv("DB_PORT") or "3306")
+
 DB_CONFIG = {
-    "host":     os.getenv("MYSQLHOST",     os.getenv("DB_HOST",     "localhost")),
-    "user":     os.getenv("MYSQLUSER",     os.getenv("DB_USER",     "root")),
-    "password": os.getenv("MYSQLPASSWORD", os.getenv("DB_PASSWORD", "")),
-    "database": os.getenv("MYSQLDATABASE", os.getenv("DB_NAME",     "hr_bot_db")),
-    "port":     int(os.getenv("MYSQLPORT", os.getenv("DB_PORT",     "3306"))),
+    "host":     _db_host,
+    "user":     _db_user,
+    "password": _db_pass,
+    "database": _db_name,
+    "port":     _db_port,
 }
+
+print(f"[DB] host={_db_host} port={_db_port} db={_db_name} user={_db_user}")
 
 # ── Admin IDs ────────────────────────────────────────────────────
 _admin_ids_str = os.getenv("ADMIN_IDS", "1473704251,1800044339")
