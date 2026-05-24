@@ -9,7 +9,8 @@ from database import (
 )
 from keyboards import (
     main_menu_keyboard, cancel_keyboard,
-    leave_type_keyboard, leave_action_keyboard, admin_menu_keyboard
+    leave_type_keyboard, leave_action_keyboard, admin_menu_keyboard,
+    request_submenu_keyboard
 )
 from states import LEAVE_TYPE, LEAVE_START, LEAVE_END, LEAVE_REASON
 from config import ADMIN_IDS
@@ -38,7 +39,63 @@ def register_handlers(bot: TeleBot, shared_sessions: dict):
     global sessions
     sessions = shared_sessions
 
-    # ── បុគ្គលិក: ចាប់ផ្តើមស្នើសុំច្បាប់ ──────────────────────────────
+    # ── បុគ្គលិក: ចុច "📋 ស្នើសុំ & លិខិត" → submenu ──────────────────
+
+    @bot.message_handler(func=lambda m: m.text == "📋 ស្នើសុំ & លិខិត")
+    def request_submenu(message):
+        uid = message.from_user.id
+        worker = get_worker_by_telegram_id(uid)
+        if not worker:
+            bot.send_message(uid, "⚠️ សូមចុះឈ្មោះជាមុនសិន ដោយប្រើ /start")
+            return
+        bot.send_message(
+            uid,
+            "📋 *ជ្រើសរើសប្រភេទ:*",
+            parse_mode="Markdown",
+            reply_markup=request_submenu_keyboard()
+        )
+
+    @bot.callback_query_handler(func=lambda c: c.data == "sub_leave")
+    def sub_leave(call):
+        uid = call.from_user.id
+        worker = get_worker_by_telegram_id(uid)
+        if not worker:
+            bot.answer_callback_query(call.id)
+            return
+        bot.answer_callback_query(call.id)
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        sessions[uid] = {"state": LEAVE_TYPE, "data": {"worker_id": worker["id"]}}
+        bot.send_message(
+            uid,
+            "📅 *ស្នើសុំច្បាប់ថ្មី*\n\nជ្រើសរើសប្រភេទច្បាប់:",
+            parse_mode="Markdown",
+            reply_markup=leave_type_keyboard()
+        )
+
+    @bot.callback_query_handler(func=lambda c: c.data == "sub_sick")
+    def sub_sick(call):
+        uid = call.from_user.id
+        worker = get_worker_by_telegram_id(uid)
+        if not worker:
+            bot.answer_callback_query(call.id)
+            return
+        bot.answer_callback_query(call.id)
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        sessions[uid] = {"state": "sick_date", "data": {"worker_id": worker["id"]}}
+        bot.send_message(
+            uid,
+            "🤒 *បញ្ជូនលិខិតឈឺ*\n\nបញ្ចូលកាលបរិច្ឆេទនៃលិខិតឈឺ (YYYY-MM-DD):",
+            parse_mode="Markdown",
+            reply_markup=cancel_keyboard()
+        )
+
+    @bot.callback_query_handler(func=lambda c: c.data == "sub_cancel")
+    def sub_cancel(call):
+        bot.answer_callback_query(call.id)
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        bot.send_message(call.from_user.id, "បានបោះបង់។", reply_markup=main_menu_keyboard())
+
+    # ── បុគ្គលិក: ចាប់ផ្តើមស្នើសុំច្បាប់ (direct) ──────────────────────
 
     @bot.message_handler(func=lambda m: m.text == "📅 ស្នើសុំច្បាប់")
     def start_leave(message):

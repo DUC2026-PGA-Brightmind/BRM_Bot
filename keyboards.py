@@ -12,12 +12,22 @@ def main_menu_keyboard():
     kb.add(
         KeyboardButton("🕐 ចូលធ្វើការ"),
         KeyboardButton("🕔 ចេញធ្វើការ"),
-        KeyboardButton("📅 ស្នើសុំច្បាប់"),
-        KeyboardButton("🤒 បញ្ជូនលិខិតឈឺ"),
+        KeyboardButton("📋 ស្នើសុំ & លិខិត"),   # ← merged button
         KeyboardButton("💰 បញ្ជីប្រាក់ខែខ្ញុំ"),
         KeyboardButton("📋 ស្ថានភាពច្បាប់ខ្ញុំ"),
         KeyboardButton("📆 វត្តមានខ្ញុំ"),
         KeyboardButton("ℹ️ ប្រវត្តិរូបខ្ញុំ")
+    )
+    return kb
+
+
+def request_submenu_keyboard():
+    """Submenu: ស្នើសុំច្បាប់ ឬ បញ្ជូនលិខិតឈឺ"""
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("📅 ស្នើសុំច្បាប់", callback_data="sub_leave"),
+        InlineKeyboardButton("🤒 បញ្ជូនលិខិតឈឺ", callback_data="sub_sick"),
+        InlineKeyboardButton("❌ បោះបង់", callback_data="sub_cancel")
     )
     return kb
 
@@ -41,8 +51,8 @@ def leave_type_keyboard():
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
         InlineKeyboardButton("🌴 ច្បាប់ប្រចាំឆ្នាំ", callback_data="ltype_annual"),
-        InlineKeyboardButton("🤒 ច្បាប់ឈឺ", callback_data="ltype_sick"),
-        InlineKeyboardButton("🚨 ច្បាប់បន្ទាន់", callback_data="ltype_emergency"),
+        InlineKeyboardButton("🤒 ច្បាប់ឈឺ",         callback_data="ltype_sick"),
+        InlineKeyboardButton("🚨 ច្បាប់បន្ទាន់",     callback_data="ltype_emergency"),
         InlineKeyboardButton("💸 ច្បាប់គ្មានប្រាក់ខែ", callback_data="ltype_unpaid")
     )
     return kb
