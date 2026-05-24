@@ -90,14 +90,16 @@ MONTHS_KH = {
 # ══════════════════════════════════════════════════════════════════
 
 def is_admin(uid):
-    return uid in ADMIN_IDS
+    result = uid in ADMIN_IDS
+    print(f"[AUTH] uid={uid} ADMIN_IDS={ADMIN_IDS} is_admin={result}")
+    return result
 
 def guard(message):
-    if not is_admin(message.from_user.id):
-        uid = message.from_user.id
+    uid = message.from_user.id
+    if not is_admin(uid):
         bot.send_message(
             uid,
-            f"⛔ អ្នកមិនមានសិទ្ធិ។\n🆔 ID របស់អ្នក: `{uid}`\n\nសូមដាក់ ID នេះក្នុង Railway → ADMIN\\_IDS",
+            f"⛔ គ្មានសិទ្ធិ។\n🆔 ID: `{uid}`\nADMIN\\_IDS: `{ADMIN_IDS}`",
             parse_mode="Markdown"
         )
         return False
@@ -1288,8 +1290,15 @@ def notify_admins_new_leaves():
 
 if __name__ == "__main__":
     print("🔐 Admin Bot កំពុងដំណើរការ...")
+    # Drop pending updates + kick out any conflicting instance (Render/Railway)
+    try:
+        bot.get_updates(offset=-1, timeout=1)
+        print("🔄 Cleared pending updates.")
+    except Exception:
+        pass
     # Start notification thread
     t = threading.Thread(target=notify_admins_new_leaves, daemon=True)
     t.start()
     print("🔔 Notification thread started.")
-    bot.infinity_polling(timeout=30, long_polling_timeout=20)
+    # skip_pending=True kicks out any other running instance
+    bot.infinity_polling(timeout=30, long_polling_timeout=20, skip_pending=True)

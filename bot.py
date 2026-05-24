@@ -91,4 +91,5 @@ def fallback(message):
 
 if __name__ == "__main__":
     print("🤖 HR Bot is running...")
-    bot.infinity_polling(timeout=30, long_polling_timeout=20)
+    # skip_pending=True drops old updates and kicks out conflicting instances
+    bot.infinity_polling(timeout=30, long_polling_timeout=20, skip_pending=True)
