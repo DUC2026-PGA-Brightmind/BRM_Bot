@@ -1,9 +1,11 @@
 """
-Bright Mind – Entry Point
+Bright Mind — Entry Point
 Runs both User Bot and Admin Bot concurrently.
+Compatible with Render.com worker hosting.
 """
 import asyncio
 import logging
+import os
 from bots.user_bot  import build_user_app
 from bots.admin_bot import build_admin_app
 
@@ -27,7 +29,6 @@ async def run_both():
     logger.info("✅ User Bot  started  (Labour Workers)")
     logger.info("✅ Admin Bot started  (Managers / HR)")
 
-    # Start polling on both bots simultaneously
     async with (
         user_app.updater,
         admin_app.updater,
@@ -35,7 +36,7 @@ async def run_both():
         await user_app.updater.start_polling(drop_pending_updates=True)
         await admin_app.updater.start_polling(drop_pending_updates=True)
 
-        logger.info("🤖 Both bots are running. Press Ctrl+C to stop.")
+        logger.info("🤖 Both bots are running.")
         await asyncio.Event().wait()   # run forever
 
     await user_app.stop()

@@ -1,0 +1,17 @@
+services:
+  - type: worker
+    name: bright-mind-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: TELEGRAM_USER_TOKEN
+        sync: false
+      - key: TELEGRAM_ADMIN_TOKEN
+        sync: false
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB
+        value: bright_mind
+      - key: PYTHON_VERSION
+        value: 3.11.9
