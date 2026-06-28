@@ -56,9 +56,10 @@ async def get_session(chat_id):
 # ── Keyboards ─────────────────────────────────────────────────────────────────
 def main_kb():
     return ReplyKeyboardMarkup([
-        [KeyboardButton("✅ ចូលធ្វើការ"),    KeyboardButton("🚪 ចេញពីធ្វើការ")],
-        [KeyboardButton("📋 វត្តមាន"),        KeyboardButton("📅 សុំច្បាប់")],
-        [KeyboardButton("� Export ច្បាប់"),  KeyboardButton("👤 ប្រវត្តិរូប")],
+        [KeyboardButton("✅ ចូលធ្វើការ",  request_location=True),
+         KeyboardButton("🚪 ចេញពីធ្វើការ", request_location=True)],
+        [KeyboardButton("📋 វត្តមាន"),     KeyboardButton("📅 សុំច្បាប់")],
+        [KeyboardButton("📄 Export ច្បាប់"), KeyboardButton("👤 ប្រវត្តិរូប")],
         [KeyboardButton("❓ ជំនួយ")],
     ], resize_keyboard=True)
 
@@ -394,6 +395,64 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown", reply_markup=main_kb())
 
 
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  LOCATION HANDLER (GPS check-in / check-out)
+# ═════════════════════════════════════════════════════════════════════════════
+async def on_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Handles location message sent via keyboard button."""
+    loc     = update.message.location
+    chat_id = str(update.effective_chat.id)
+
+    if loc is None:
+        await update.message.reply_text("⚠️ រកមិនឃើញ GPS location។", reply_markup=main_kb())
+        return
+
+    gps_str = f"{loc.latitude:.6f},{loc.longitude:.6f}"
+    maps_url = f"https://maps.google.com/?q={loc.latitude},{loc.longitude}"
+
+    # Check if user already checked in today → treat as check-out
+    from database.collections import attendance_logs, telegram_sessions as ts_col
+    from datetime import timezone, timedelta
+    KH_TZ = timezone(timedelta(hours=7))
+    from datetime import datetime
+    today = datetime.now(KH_TZ).date().isoformat()
+
+    session = await ts_col().find_one({"telegram_chat_id": chat_id})
+    if not session:
+        await update.message.reply_text("❌ អ្នកមិនទាន់ចុះឈ្មោះ។ សូម /start ជាមុន។",
+                                        reply_markup=main_kb())
+        return
+
+    existing = await attendance_logs().find_one({
+        "employee_id": session["employee_id"],
+        "work_date":   today,
+    })
+
+    if existing and existing.get("check_out"):
+        await update.message.reply_text(
+            "⚠️ អ្នកបានចូល និង ចេញធ្វើការថ្ងៃនេះហើយ។",
+            reply_markup=main_kb())
+        return
+
+    if existing and existing.get("check_in") and not existing.get("check_out"):
+        # → Check-out
+        result = await check_out(chat_id)
+        msg    = result["msg"]
+    else:
+        # → Check-in
+        result = await check_in(chat_id, location_gps=gps_str)
+        msg    = result["msg"]
+
+    await update.message.reply_text(
+        f"{msg}\n\n"
+        f"📍 GPS: [{loc.latitude:.5f}, {loc.longitude:.5f}]({maps_url})",
+        parse_mode="Markdown",
+        reply_markup=main_kb(),
+    )
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  SHARED HELPERS
 # ═════════════════════════════════════════════════════════════════════════════
@@ -481,6 +540,7 @@ def build_user_app():
     app.add_handler(CommandHandler("myleaves",    cmd_myleaves))
     app.add_handler(CommandHandler("exportleave", cmd_exportleave))
     app.add_handler(CommandHandler("profile",     cmd_profile))
+    app.add_handler(MessageHandler(filters.LOCATION, on_location))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     return app
