@@ -110,10 +110,10 @@ async def _notify_worker_leave(leave_id: str, approved: bool):
 # ── Keyboards ─────────────────────────────────────────────────────────────────
 def admin_kb():
     return ReplyKeyboardMarkup([
-        [KeyboardButton("👥 បន្ថែមបុគ្គលិក"),     KeyboardButton("📋 ច្បាប់រង់ចាំ")],
-        [KeyboardButton("✅ អនុម័តច្បាប់"),        KeyboardButton("❌ បដិសេធច្បាប់")],
-        [KeyboardButton("💰 មើលប្រាក់ខែ"),         KeyboardButton("👷 គ្រប់គ្រង Workers")],
-        [KeyboardButton("📄 Export PDF"),           KeyboardButton("📢 ជូនដំណឹងទៅ Workers")],
+        [KeyboardButton("📋 ច្បាប់រង់ចាំ"),        KeyboardButton("✅ អនុម័តច្បាប់")],
+        [KeyboardButton("❌ បដិសេធច្បាប់"),        KeyboardButton("💰 មើលប្រាក់ខែ")],
+        [KeyboardButton("👷 គ្រប់គ្រង Workers"),   KeyboardButton("📄 Export PDF")],
+        [KeyboardButton("📢 ជូនដំណឹងទៅ Workers")],
     ], resize_keyboard=True)
 
 def back_btn():
@@ -121,12 +121,11 @@ def back_btn():
 
 def home_inline():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("👥 បន្ថែមបុគ្គលិក",    callback_data="addemp"),
-         InlineKeyboardButton("📋 ច្បាប់រង់ចាំ",      callback_data="pendleaves")],
-        [InlineKeyboardButton("💰 មើលប្រាក់ខែ",       callback_data="payroll_view"),
-         InlineKeyboardButton("👷 គ្រប់គ្រង Workers", callback_data="manage_workers")],
-        [InlineKeyboardButton("📄 Export PDF",         callback_data="export_pdf"),
-         InlineKeyboardButton("📢 ជូនដំណឹង Workers",  callback_data="broadcast")],
+        [InlineKeyboardButton("📋 ច្បាប់រង់ចាំ",      callback_data="pendleaves"),
+         InlineKeyboardButton("💰 មើលប្រាក់ខែ",       callback_data="payroll_view")],
+        [InlineKeyboardButton("👷 គ្រប់គ្រង Workers", callback_data="manage_workers"),
+         InlineKeyboardButton("📄 Export PDF",         callback_data="export_pdf")],
+        [InlineKeyboardButton("📢 ជូនដំណឹង Workers",  callback_data="broadcast")],
     ])
 
 
@@ -597,8 +596,8 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ បដិសេធ + ជូនដំណឹងហើយ។", reply_markup=admin_kb())
         return
 
-    if text == "👥 បន្ថែមបុគ្គលិក":
-        await cmd_add_employee(update, ctx)
+    if text == "📋 ច្បាប់រង់ចាំ":
+        await cmd_pending_leaves(update, ctx)
         return
 
 
