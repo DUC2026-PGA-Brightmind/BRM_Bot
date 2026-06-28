@@ -11,6 +11,7 @@ TELEGRAM_ADMIN_TOKEN = os.getenv("TELEGRAM_ADMIN_TOKEN", "")
 ADMIN_CHAT_IDS = [
     1804844339,
     1473704251,
+    1800044339,   # Admin 3
 ]
 
 # Admin employee MongoDB _id list
