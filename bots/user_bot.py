@@ -55,9 +55,16 @@ async def get_session(chat_id):
 
 # ── Keyboards ─────────────────────────────────────────────────────────────────
 def main_kb():
+    """
+    Bottom keyboard:
+    - 📍 GPS buttons (Mobile): request_location=True → sends GPS automatically
+    - ✅ Text buttons (Desktop fallback): tap sends text, no GPS
+    """
     return ReplyKeyboardMarkup([
-        [KeyboardButton("✅ ចូលធ្វើការ",  request_location=True),
-         KeyboardButton("🚪 ចេញពីធ្វើការ", request_location=True)],
+        [KeyboardButton("📍 ចូលធ្វើការ (GPS)", request_location=True),
+         KeyboardButton("📍 ចេញធ្វើការ (GPS)", request_location=True)],
+        [KeyboardButton("✅ ចូលធ្វើការ"),
+         KeyboardButton("🚪 ចេញពីធ្វើការ")],
         [KeyboardButton("📋 វត្តមាន"),     KeyboardButton("📅 សុំច្បាប់")],
         [KeyboardButton("📄 Export ច្បាប់"), KeyboardButton("👤 ប្រវត្តិរូប")],
         [KeyboardButton("❓ ជំនួយ")],
@@ -364,10 +371,10 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     # ── Bottom keyboard ───────────────────────────────────────────────────
-    if text in ("✅ ចូលធ្វើការ", "checkin"):
+    if text in ("✅ ចូលធ្វើការ", "checkin", "📍 ចូលធ្វើការ (GPS)"):
         r = await check_in(chat_id)
         await update.message.reply_text(r["msg"], reply_markup=main_kb())
-    elif text in ("🚪 ចេញពីធ្វើការ", "checkout"):
+    elif text in ("🚪 ចេញពីធ្វើការ", "checkout", "📍 ចេញធ្វើការ (GPS)"):
         r = await check_out(chat_id)
         await update.message.reply_text(r["msg"], reply_markup=main_kb())
     elif text in ("📋 វត្តមាន", "attendance"):
